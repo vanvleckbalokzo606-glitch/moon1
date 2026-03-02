@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>血月（总月食）3D教学模型：本影/半影 + 步骤演示 + 速度/位置控制</title>
+  <style>
+    html, body { margin:0; height:100%; background:#000; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    #ui {
+      position: fixed; left: 12px; top: 12px; z-index: 10;
+      display:flex; flex-direction:column; gap:10px; width:min(560px, calc(100vw - 24px));
+    }
+    .panel {
+      background: rgba(20,20,25,0.70);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 10px 12px;
+      backdrop-filter: blur(6px);
+      color: #f1f1f1;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    button {
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    button:hover { background: rgba(255,255,255,0.16); }
+    button:active { transform: translateY(1px); }
+    .tag {
+      display:inline-block; padding: 3px 8px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+      font-size: 12px;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
+    #explain { line-height: 1.35; font-size: 14px; }
+    #hint {
+      position: fixed; right: 12px; bottom: 12px; z-index: 10;
+      color: rgba(255,255,255,0.85);
+      background: rgba(20,20,25,0.55);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      max-width: 380px;
+    }
+    #fallback {
+      position: fixed; inset: 0; display:none; place-items:center;
+      color:#fff; padding: 24px; text-align:center; background:#000;
+    }
+    .small { font-size: 12px; color: rgba(255,255,255,0.78); }
+    .ctrl {
+      display:grid;
+      grid-template-columns: 80px 1fr 64px;
+      gap:8px;
+      align-items:center;
+      margin-top:6px;
+    }
+    input[type="range"] { width: 100%; }
+    .mono { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <span class="tag" id="stageTag">阶段：运行中</span>
+        <span class="tag" id="colorTag">月亮：灰色</span>
+      </div>
+      <div class="row">
+        <button id="togglePause">暂停</button>
+        <button id="resetView">重置视角</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:8px">
+      <button data-step="normal">步骤1：正常满月</button>
+      <button data-step="penumbra">步骤2：进入半影</button>
+      <button data-step="umbra">步骤3：进入本影</button>
+      <button data-step="totality">步骤4：全食（血月）</button>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="modeAuto" style="border-color:rgba(255,255,255,0.35);">模式：自动</button>
+      <button id="modeManual">模式：手动</button>
+      <span class="small">（手动：用“位置”滑块慢慢推进）</span>
+    </div>
+
+    <div class="ctrl">
+      <div class="small">速度</div>
+      <input id="speedRange" type="range" min="0" max="3" step="0.01" value="0.50">
+      <div class="small mono" id="speedVal">0.50x</div>
+    </div>
+
+    <div class="ctrl">
+      <div class="small">位置</div>
+      <input id="posRange" type="range" min="0" max="360" step="0.1" value="0">
+      <div class="small mono" id="posVal">0.0°</div>
+    </div>
+  </div>
+
+  <div class="panel" id="explain">
+    <div style="font-weight:700; margin-bottom:6px;">血月（总月食）发生了什么？</div>
+    <div>
+      当 <b>太阳—地球—月亮</b> 排成一条线时，地球会在背向太阳的一侧形成影子：
+      <br/>
+      <b>半影（Penumbra）</b>：只有部分太阳光被挡住，月亮会变暗一点；
+      <br/>
+      <b>本影（Umbra）</b>：太阳光几乎完全被挡住，进入更暗的核心影区；
+      <br/>
+      <b>全食（Totality）</b>：月亮完全在本影里，但仍会被地球大气层“折射/散射”过来的红光照到，所以看起来偏红。
+    </div>
+    <div class="small" style="margin-top:6px;">
+      注：这里用“红色”直观表示血月；真实颜色会从橘红到暗红不等，取决于大气、尘埃、云量等。
+    </div>
+  </div>
+</div>
+
+<div id="hint">
+  <div><b>交互提示</b></div>
+  <div>鼠标左键拖动：旋转视角；滚轮：缩放</div>
+  <div class="small" style="margin-top:6px;">
+    建议演示：切换到「手动」→ 把速度调到 0 → 用「位置」慢慢拖动观察半影/本影/全食颜色变化。
+  </div>
+</div>
+
+<div id="fallback">
+  <div>
+    <div style="font-size:18px; font-weight:700; margin-bottom:8px;">页面黑屏：three.js 没加载成功</div>
+    <div style="opacity:.9; line-height:1.5">
+      这通常是网络/插件拦截 CDN 导致。<br/>
+      解决：用 Chrome/Edge 打开，并确保可以访问 CDN；或把 three.js 下载到本地再引用。<br/>
+      需要离线版我也可以给你做（不走 CDN）。
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  if (!window.THREE) { document.getElementById('fallback').style.display = 'grid'; return; }
+
+  // ===== 参数（示意缩放）=====
+  const incl = 0.22;
+  const orbitR = 40;
+
+  // ===== 场景 =====
+  const scene = new THREE.Scene();
+
+  // 星点背景
+  const starsGeo = new THREE.BufferGeometry();
+  const starCount = 1200;
+  const starPos = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = 200;
+    starPos[i*3+0] = (Math.random() * 2 - 1) * r;
+    starPos[i*3+1] = (Math.random() * 2 - 1) * r;
+    starPos[i*3+2] = (Math.random() * 2 - 1) * r;
+  }
+  starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ size: 0.8 })));
+
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 2000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  // ===== 自制旋转/缩放控制 =====
+  let isDragging = false, lastX = 0, lastY = 0;
+  let yaw = 0.4, pitch = 0.2, camDist = 60;
+  function updateCamera() {
+    const x = camDist * Math.cos(pitch) * Math.sin(yaw);
+    const y = camDist * Math.sin(pitch);
+    const z = camDist * Math.cos(pitch) * Math.cos(yaw);
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+  }
+  updateCamera();
+
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    isDragging = true; lastX = e.clientX; lastY = e.clientY;
+    renderer.domElement.setPointerCapture(e.pointerId);
+  });
+  renderer.domElement.addEventListener('pointerup', () => { isDragging = false; });
+  renderer.domElement.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    yaw -= dx * 0.005; pitch -= dy * 0.005;
+    const limit = Math.PI/2 - 0.05;
+    pitch = Math.max(-limit, Math.min(limit, pitch));
+    updateCamera();
+  });
+  renderer.domElement.addEventListener('wheel', (e) => {
+    camDist *= (e.deltaY > 0) ? 1.08 : 0.92;
+    camDist = Math.max(25, Math.min(160, camDist));
+    updateCamera();
+  }, { passive: true });
+
+  // ===== 光源 =====
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  const sunLight = new THREE.PointLight(0xffffff, 2.2, 800);
+  sunLight.position.set(-120, 0, 0);
+  scene.add(sunLight);
+
+  // ===== 天体 =====
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(18, 48, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffbb33 })
+  );
+  sun.position.set(-120, 0, 0);
+  scene.add(sun);
+
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(8, 48, 48),
+    new THREE.MeshStandardMaterial({ color: 0x2b6dff, roughness: 0.75, metalness: 0.0 })
+  );
+  scene.add(earth);
+
+  const moonMat = new THREE.MeshStandardMaterial({ color: 0xb8b8b8, roughness: 0.95, metalness: 0.0 });
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(3.2, 48, 48), moonMat);
+  scene.add(moon);
+
+  // ===== 影锥 =====
+  const shadowGroup = new THREE.Group();
+  shadowGroup.position.copy(earth.position);
+  scene.add(shadowGroup);
+
+  const umbraLen = 140, umbraR0 = 8.6, umbraR1 = 0.8;
+  const umbra = new THREE.Mesh(
+    new THREE.CylinderGeometry(umbraR1, umbraR0, umbraLen, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x111111, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false })
+  );
+  umbra.rotation.z = Math.PI / 2;
+  umbra.position.set(umbraLen / 2 + 2, 0, 0);
+  shadowGroup.add(umbra);
+
+  const penumbraLen = 140, penumbraR0 = 12.5, penumbraR1 = 5.5;
+  const penumbra = new THREE.Mesh(
+    new THREE.CylinderGeometry(penumbraR1, penumbraR0, penumbraLen, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x333333, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false })
+  );
+  penumbra.rotation.z = Math.PI / 2;
+  penumbra.position.set(penumbraLen / 2 + 2, 0, 0);
+  shadowGroup.add(penumbra);
+
+  function makeWire(mesh, opacity) {
+    const wire = new THREE.LineSegments(
+      new THREE.WireframeGeometry(mesh.geometry),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity })
+    );
+    wire.position.copy(mesh.position);
+    wire.rotation.copy(mesh.rotation);
+    return wire;
+  }
+  shadowGroup.add(makeWire(umbra, 0.18));
+  shadowGroup.add(makeWire(penumbra, 0.10));
+
+  // ===== 轨道线（与运动一致）=====
+  const orbitPts = [];
+  const seg = 256;
+  for (let i = 0; i <= seg; i++) {
+    const a = (i / seg) * Math.PI * 2;
+    orbitPts.push(new THREE.Vector3(
+      Math.cos(a) * orbitR,
+      Math.sin(a) * orbitR * Math.sin(incl),
+      Math.sin(a) * orbitR * Math.cos(incl)
+    ));
+  }
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(orbitPts),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 })
+  ));
+
+  // ===== UI / 逻辑 =====
+  const stageTag = document.getElementById('stageTag');
+  const colorTag = document.getElementById('colorTag');
+  const speedRange = document.getElementById('speedRange');
+  const posRange = document.getElementById('posRange');
+  const speedVal = document.getElementById('speedVal');
+  const posVal = document.getElementById('posVal');
+
+  let paused = false;
+  let simMode = 'auto'; // 'auto' or 'manual'
+  let theta = 0;        // 轨道角（弧度）
+  let speed = parseFloat(speedRange.value); // 速度倍率
+
+  function setStageText(txt) { stageTag.textContent = '阶段：' + txt; }
+  function setMoonColorText(txt) { colorTag.textContent = '月亮：' + txt; }
+
+  function setMoonPosFromTheta(th) {
+    moon.position.set(
+      Math.cos(th) * orbitR,
+      Math.sin(th) * orbitR * Math.sin(incl),
+      Math.sin(th) * orbitR * Math.cos(incl)
+    );
+  }
+
+  function setMoonColorByZone(zone) {
+    if (zone === 'totality') {
+      moon.material.color.set(0x8f1b12);
+      setMoonColorText('全食偏红（血月）');
+    } else if (zone === 'umbra') {
+      moon.material.color.set(0x4a2a2a);
+      setMoonColorText('本影内（更暗）');
+    } else if (zone === 'penumbra') {
+      moon.material.color.set(0x7e7e7e);
+      setMoonColorText('半影内（略变暗）');
+    } else {
+      moon.material.color.set(0xb8b8b8);
+      setMoonColorText('正常（灰色）');
+    }
+  }
+
+  function shadowZoneForMoon() {
+    if (moon.position.x <= 0) return 'outside';
+
+    const x = Math.min(Math.max(moon.position.x - 2, 0), umbraLen);
+    const umbraR = umbraR0 + (umbraR1 - umbraR0) * (x / umbraLen);
+    const penR  = penumbraR0 + (penumbraR1 - penumbraR0) * (x / penumbraLen);
+
+    const d = Math.sqrt(moon.position.y*moon.position.y + moon.position.z*moon.position.z);
+    const moonR = 3.2;
+
+    if (d + moonR < umbraR) return 'totality';
+    if (d < umbraR) return 'umbra';
+    if (d < penR) return 'penumbra';
+    return 'outside';
+  }
+
+  function updatePosUIFromTheta() {
+    const deg = (theta * 180 / Math.PI) % 360;
+    const degNorm = (deg + 360) % 360;
+    posRange.value = degNorm.toFixed(1);
+    posVal.textContent = degNorm.toFixed(1) + '°';
+  }
+
+  // 初始位置
+  setStageText('运行中（可调速度/位置）');
+  setMoonPosFromTheta(theta);
+  updatePosUIFromTheta();
+  setMoonColorByZone(shadowZoneForMoon());
+
+  // 暂停/视角
+  document.getElementById('togglePause').addEventListener('click', () => {
+    paused = !paused;
+    document.getElementById('togglePause').textContent = paused ? '继续' : '暂停';
+    if (!paused) setStageText('运行中（可调速度/位置）');
+    else setStageText('已暂停（可拖动看影锥）');
+  });
+  document.getElementById('resetView').addEventListener('click', () => {
+    yaw = 0.4; pitch = 0.2; camDist = 60; updateCamera();
+  });
+
+  // 模式切换
+  function setMode(m) {
+    simMode = m;
+    if (m === 'auto') {
+      document.getElementById('modeAuto').style.borderColor = 'rgba(255,255,255,0.35)';
+      document.getElementById('modeManual').style.borderColor = 'rgba(255,255,255,0.18)';
+      setStageText(paused ? '已暂停（自动模式）' : '运行中（自动模式）');
+    } else {
+      document.getElementById('modeManual').style.borderColor = 'rgba(255,255,255,0.35)';
+      document.getElementById('modeAuto').style.borderColor = 'rgba(255,255,255,0.18)';
+      setStageText('手动模式（拖动位置滑块慢慢推进）');
+      paused = true;
+      document.getElementById('togglePause').textContent = '继续';
+    }
+  }
+  document.getElementById('modeAuto').addEventListener('click', () => setMode('auto'));
+  document.getElementById('modeManual').addEventListener('click', () => setMode('manual'));
+
+  // 速度滑块
+  speedRange.addEventListener('input', () => {
+    speed = parseFloat(speedRange.value);
+    speedVal.textContent = speed.toFixed(2) + 'x';
+  });
+
+  // 位置滑块（手动/自动都可用；在自动模式下相当于“跳到某个位置”）
+  posRange.addEventListener('input', () => {
+    const deg = parseFloat(posRange.value);
+    posVal.textContent = deg.toFixed(1) + '°';
+    theta = deg * Math.PI / 180;
+    setMoonPosFromTheta(theta);
+    setMoonColorByZone(shadowZoneForMoon());
+    if (simMode === 'manual') {
+      paused = true;
+      document.getElementById('togglePause').textContent = '继续';
+    }
+  });
+
+  // 步骤按钮（仍然保留，方便一键定位）
+  function applyStep(name) {
+    setMode('manual');
+    if (name === 'normal') {
+      theta = Math.PI; // x=-R
+    } else if (name === 'penumbra') {
+      // 直接按“典型位置”放到影区附近（不强行落在轨道上会更准）
+      moon.position.set(55, 0, 10.5);
+      setMoonColorByZone(shadowZoneForMoon());
+      setStageText('步骤演示：进入半影（示意定位）');
+      return;
+    } else if (name === 'umbra') {
+      moon.position.set(55, 0, 6.0);
+      setMoonColorByZone(shadowZoneForMoon());
+      setStageText('步骤演示：进入本影（示意定位）');
+      return;
+    } else if (name === 'totality') {
+      moon.position.set(55, 0, 1.5);
+      setMoonColorByZone(shadowZoneForMoon());
+      setStageText('步骤演示：全食（血月）（示意定位）');
+      return;
+    }
+    setMoonPosFromTheta(theta);
+    updatePosUIFromTheta();
+    setMoonColorByZone(shadowZoneForMoon());
+    setStageText('步骤演示：' + ({normal:'正常满月'}[name] || name));
+  }
+
+  document.querySelectorAll('button[data-step]').forEach(btn => {
+    btn.addEventListener('click', () => applyStep(btn.dataset.step));
+  });
+
+  // ===== 动画 =====
+  let lastTs = performance.now();
+  function animate(ts) {
+    requestAnimationFrame(animate);
+
+    const dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+
+    if (!paused && simMode === 'auto') {
+      // 基础角速度（rad/s） * speed 倍率
+      const baseOmega = 0.7; // 示意：你可调更慢/更快
+      theta += baseOmega * speed * dt;
+      setMoonPosFromTheta(theta);
+      updatePosUIFromTheta();
+    }
+
+    setMoonColorByZone(shadowZoneForMoon());
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(animate);
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+})();
+</script>
+
+</body>
+</html>
